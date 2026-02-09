@@ -34,6 +34,7 @@ RUN set -eux; \
     -DBUILD_BITCOIN_QT=OFF \
     -DBUILD_TESTS=OFF \
     -DBUILD_BENCH=OFF \
+    -DENABLE_UPNP=OFF \
     -DUSE_JEMALLOC=OFF \
   ; \
   ninja -C /build bitcoind bitcoin-cli bitcoin-tx
@@ -65,4 +66,3 @@ COPY --from=builder /build/src/bitcoin-tx /usr/local/bin/bitcoin-tx
 EXPOSE 28337 28338 28339
 
 CMD ["bitcoind", "-datadir=/data", "-conf=/data/bitcoin.conf", "-printtoconsole"]
-
