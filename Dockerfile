@@ -35,6 +35,7 @@ RUN set -eux; \
     -DBUILD_TESTS=OFF \
     -DBUILD_BENCH=OFF \
     -DENABLE_UPNP=OFF \
+    -DENABLE_NATPMP=OFF \
     -DUSE_JEMALLOC=OFF \
   ; \
   ninja -C /build bitcoind bitcoin-cli bitcoin-tx
