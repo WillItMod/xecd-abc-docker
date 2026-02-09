@@ -6,8 +6,16 @@ on:
 
 jobs:
   build:
-    name: Build and push to GitHub Container Registry
-    runs-on: ubuntu-22.04
+    name: Build and push (per-arch)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm64
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -28,8 +36,30 @@ jobs:
         run: |
           OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/${{ matrix.arch }} \
             --build-arg BITCOINABC_VERSION=0.32.7 \
-            --tag ghcr.io/${OWNER_LC}/xecd-abc:${{ env.TAG }} \
+            --tag ghcr.io/${OWNER_LC}/xecd-abc:${{ env.TAG }}-${{ matrix.arch }} \
             --push .
 
+  manifest:
+    name: Create multi-arch manifest
+    runs-on: ubuntu-22.04
+    needs: [build]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Set TAG
+        run: |
+          echo "TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
+      - name: Login to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+
+      - name: Create manifest
+        run: |
+          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          docker buildx imagetools create \
+            -t "ghcr.io/${OWNER_LC}/xecd-abc:${TAG}" \
+            "ghcr.io/${OWNER_LC}/xecd-abc:${TAG}-amd64" \
+            "ghcr.io/${OWNER_LC}/xecd-abc:${TAG}-arm64"
