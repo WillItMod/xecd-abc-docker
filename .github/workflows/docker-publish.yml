@@ -6,16 +6,9 @@ on:
 
 jobs:
   build:
-    name: Build and push (per-arch)
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            runner: ubuntu-22.04
-          - arch: arm64
-            runner: ubuntu-24.04-arm64
-    runs-on: ${{ matrix.runner }}
+    name: Build and push to GHCR (multi-arch)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
     permissions:
       contents: read
       packages: write
@@ -29,6 +22,10 @@ jobs:
       - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
 
+      - name: Enable QEMU (binfmt)
+        run: |
+          docker run --privileged --rm tonistiigi/binfmt --install all
+
       - name: Setup Docker buildx
         run: docker buildx create --use
 
@@ -36,30 +33,9 @@ jobs:
         run: |
           OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           docker buildx build \
-            --platform linux/${{ matrix.arch }} \
+            --platform linux/amd64,linux/arm64 \
             --build-arg BITCOINABC_VERSION=0.32.7 \
-            --tag ghcr.io/${OWNER_LC}/xecd-abc:${{ env.TAG }}-${{ matrix.arch }} \
+            --tag ghcr.io/${OWNER_LC}/xecd-abc:${{ env.TAG }} \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
             --push .
-
-  manifest:
-    name: Create multi-arch manifest
-    runs-on: ubuntu-22.04
-    needs: [build]
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Set TAG
-        run: |
-          echo "TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-
-      - name: Login to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
-
-      - name: Create manifest
-        run: |
-          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          docker buildx imagetools create \
-            -t "ghcr.io/${OWNER_LC}/xecd-abc:${TAG}" \
-            "ghcr.io/${OWNER_LC}/xecd-abc:${TAG}-amd64" \
-            "ghcr.io/${OWNER_LC}/xecd-abc:${TAG}-arm64"
