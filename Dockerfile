@@ -51,6 +51,7 @@ RUN set -eux; \
   apt-get install -y --no-install-recommends \
     ca-certificates \
     libevent-2.1-7 \
+    libevent-pthreads-2.1-7 \
     libboost-filesystem1.74.0 \
     libboost-thread1.74.0 \
     libboost-chrono1.74.0 \
