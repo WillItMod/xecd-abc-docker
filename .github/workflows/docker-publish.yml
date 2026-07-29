@@ -6,9 +6,19 @@ on:
 
 jobs:
   build:
-    name: Build and push to GHCR (multi-arch)
-    runs-on: ubuntu-22.04
-    timeout-minutes: 360
+    name: Build ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-22.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     permissions:
       contents: read
       packages: write
@@ -22,10 +32,6 @@ jobs:
       - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
 
-      - name: Enable QEMU (binfmt)
-        run: |
-          docker run --privileged --rm tonistiigi/binfmt --install all
-
       - name: Setup Docker buildx
         run: docker buildx create --use
 
@@ -33,10 +39,33 @@ jobs:
         run: |
           OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+            --platform "${{ matrix.platform }}" \
             --build-arg BITCOINABC_VERSION=0.33.4 \
             --build-arg BITCOINABC_COMMIT=17ab9b0c050239c4014d3264f893e580f5f2237b \
-            --tag ghcr.io/${OWNER_LC}/xecd-abc:${{ env.TAG }} \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
+            --tag ghcr.io/${OWNER_LC}/xecd-abc:${{ env.TAG }}-${{ matrix.arch }} \
+            --cache-from type=gha,scope=${{ matrix.arch }} \
+            --cache-to type=gha,mode=max,scope=${{ matrix.arch }} \
             --push .
+
+  publish:
+    name: Publish multi-arch manifest
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Set TAG
+        run: |
+          echo "TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
+      - name: Login to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+
+      - name: Publish manifest
+        run: |
+          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          docker buildx imagetools create \
+            --tag ghcr.io/${OWNER_LC}/xecd-abc:${{ env.TAG }} \
+            ghcr.io/${OWNER_LC}/xecd-abc:${{ env.TAG }}-amd64 \
+            ghcr.io/${OWNER_LC}/xecd-abc:${{ env.TAG }}-arm64
