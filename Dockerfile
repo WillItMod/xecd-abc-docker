@@ -1,6 +1,7 @@
 FROM debian:bookworm-slim AS builder
 
-ARG BITCOINABC_VERSION=0.32.7
+ARG BITCOINABC_VERSION=0.33.4
+ARG BITCOINABC_COMMIT=17ab9b0c050239c4014d3264f893e580f5f2237b
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN set -eux; \
@@ -26,20 +27,25 @@ RUN set -eux; \
   rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
-  git clone --depth 1 --branch "v${BITCOINABC_VERSION}" https://github.com/Bitcoin-ABC/bitcoin-abc.git /src
+  git clone --depth 1 --branch "v${BITCOINABC_VERSION}" https://github.com/Bitcoin-ABC/bitcoin-abc.git /src; \
+  test "$(git -C /src rev-parse HEAD)" = "${BITCOINABC_COMMIT}"
 
 RUN set -eux; \
   cmake -S /src -B /build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_BITCOIN_QT=OFF \
-    -DBUILD_TESTS=OFF \
-    -DBUILD_BENCH=OFF \
+    -DBUILD_QT=OFF \
     -DBUILD_WALLET=OFF \
-    -DENABLE_UPNP=OFF \
-    -DENABLE_NATPMP=OFF \
+    -DBUILD_SEEDER=OFF \
+    -DBUILD_LIBBITCOINCONSENSUS=OFF \
+    -DBUILD_IGUANA=OFF \
+    -DBUILD_CHRONIK=OFF \
+    -DBUILD_CHRONIK_PLUGINS=OFF \
+    -DENABLE_TRACING=OFF \
     -DUSE_JEMALLOC=OFF \
   ; \
   ninja -C /build bitcoind bitcoin-cli bitcoin-tx
+
+RUN strip /build/src/bitcoind /build/src/bitcoin-cli /build/src/bitcoin-tx
 
 
 FROM debian:bookworm-slim

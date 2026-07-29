@@ -34,7 +34,8 @@ jobs:
           OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --build-arg BITCOINABC_VERSION=0.32.7 \
+            --build-arg BITCOINABC_VERSION=0.33.4 \
+            --build-arg BITCOINABC_COMMIT=17ab9b0c050239c4014d3264f893e580f5f2237b \
             --tag ghcr.io/${OWNER_LC}/xecd-abc:${{ env.TAG }} \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
